@@ -71,7 +71,7 @@ size_t _num_allocated_bytes()
         counter += iter->size;
     }
 
-    return counter;
+    return counter * 10;
 }
 
 size_t _size_meta_data()
