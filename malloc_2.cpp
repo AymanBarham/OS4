@@ -143,9 +143,9 @@ void *smalloc(size_t size)
     allocated_metadata->next = NULL;
     allocated_metadata->is_free = false;
     allocated_metadata->prev = tail;
+    tail->next = allocated_metadata;
     allocated_metadata->size = size;
 
-    tail->next = allocated_metadata;
     tail = allocated_metadata;
 
     allocated_ptr = sbrk(size);
