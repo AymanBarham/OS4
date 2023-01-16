@@ -26,7 +26,6 @@ MallocMetadata tail = NULL;
 size_t _num_free_blocks()
 {
     size_t counter = 0;
-    MallocMetadata iter = head;
 
     for (MallocMetadata iter = head; iter; iter = iter->next)
     {
