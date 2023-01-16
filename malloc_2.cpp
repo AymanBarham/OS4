@@ -207,7 +207,7 @@ void *srealloc(void *oldp, size_t size)
 
     if (size <= old_metadata->size)
     {
-        old_metadata->size = size;
+        old_metadata->is_free = false;
         return oldp;
     }
 
@@ -217,7 +217,7 @@ void *srealloc(void *oldp, size_t size)
         return NULL;
     }
 
-    std::memmove(allocated_ptr, oldp, size); // maybe bug here
+    std::memmove(allocated_ptr, oldp, old_metadata->size); // maybe bug here
     sfree(oldp);
 
     return allocated_ptr;
