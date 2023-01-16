@@ -97,7 +97,7 @@ void *smalloc(size_t size)
     if (!head)
     {
         head = (MallocMetadata) sbrk(_size_meta_data());
-        if (!head)
+        if (head == (void*) -1)
         {
             return NULL;
         }
@@ -121,7 +121,7 @@ void *smalloc(size_t size)
     // not first allocation
     for (iter = head; iter; iter = iter->next)
     {
-        if (iter->is_free && iter->size <= size)
+        if (iter->is_free && iter->size >= size)
         {
             // found first fit block
             break;
@@ -207,7 +207,7 @@ void *srealloc(void *oldp, size_t size)
 
     if (size <= old_metadata->size)
     {
-        old_metadata->is_free = false;
+    	old_metadata->is_free = false;
         return oldp;
     }
 
@@ -217,7 +217,7 @@ void *srealloc(void *oldp, size_t size)
         return NULL;
     }
 
-    std::memmove(allocated_ptr, oldp, old_metadata->size); // maybe bug here
+    std::memmove(allocated_ptr, oldp, size); // maybe bug here
     sfree(oldp);
 
     return allocated_ptr;
