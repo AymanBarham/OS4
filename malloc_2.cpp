@@ -117,7 +117,7 @@ void *smalloc(size_t size)
         return allocated_ptr;
     }
 
-    MallocMetadata iter;
+    MallocMetadata iter = NULL;
     // not first allocation
     for (iter = head; iter; iter = iter->next)
     {
@@ -216,7 +216,7 @@ void *srealloc(void *oldp, size_t size)
         return NULL;
     }
 
-    std::memmove(allocated_ptr, oldp, size); // maybe bug here
+    std::memmove(allocated_ptr, oldp, old_metadata->size); // maybe bug here
     sfree(oldp);
 
     return allocated_ptr;
