@@ -117,7 +117,7 @@ void *smalloc(size_t size)
         return allocated_ptr;
     }
 
-    MallocMetadata iter = NULL;
+    MallocMetadata iter;
     // not first allocation
     for (iter = head; iter; iter = iter->next)
     {
@@ -145,6 +145,7 @@ void *smalloc(size_t size)
     allocated_metadata->prev = tail;
     allocated_metadata->size = size;
 
+    tail->next = allocated_metadata;
     tail = allocated_metadata;
 
     allocated_ptr = sbrk(size);
