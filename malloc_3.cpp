@@ -39,6 +39,8 @@ int random_cookie = rand();
 
 void _check_for_overflow();
 
+
+// inserts a ready free block to the free list in a sorted manner.
 void _insert_to_free_list(MallocMetadata to_insert) // coalece and cut before adding
 {
     _check_for_overflow();
@@ -70,10 +72,29 @@ void _insert_to_free_list(MallocMetadata to_insert) // coalece and cut before ad
         to_insert->prev_free = free_list_tail;
         free_list_tail = to_insert;
         to_insert->next_free = NULL;
+        return;
     }
 
     if (iter->size == to_insert->size)
     {
+        if (iter > to_insert)
+        {
+            if (!iter->prev_free)
+            {
+                to_insert->next_free = iter;
+                to_insert->prev_free = NULL;
+                iter->prev_free = to_insert;
+
+                free_list_head = to_insert;
+            } else
+            {
+                to_insert->next_free = iter;
+                to_insert->prev_free = iter->prev_free;
+                iter->prev_free->next_free = to_insert;
+                iter->prev_free = to_insert;
+            }
+            return;
+        }
         while (iter->size == to_insert->size && iter < to_insert && iter->next_free
                 && iter->next_free->size == to_insert->size && iter->next_free < to_insert)
         {
@@ -83,11 +104,16 @@ void _insert_to_free_list(MallocMetadata to_insert) // coalece and cut before ad
         // add after iterator
         to_insert->prev_free = iter;
         to_insert->next_free = iter->next_free;
-        iter->next_free = to_insert;
         if (iter->next_free)
         {
             iter->next_free->prev_free = to_insert;
+        } else
+        {
+            free_list_tail = to_insert;
+            to_insert->next_free = NULL;
         }
+        iter->next_free = to_insert;
+
         return;
     }
 
