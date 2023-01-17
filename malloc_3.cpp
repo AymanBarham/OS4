@@ -37,20 +37,85 @@ MallocMetadata free_list_tail = NULL;
 
 int random_cookie = rand();
 
+void _check_for_overflow();
 
+void _insert_to_free_list(MallocMetadata to_insert) // coalece and cut before adding
+{
+    _check_for_overflow();
+    if (!to_insert)
+    {
+        return;
+    }
+    if (!free_list_head) // empty free list
+    {
+        free_list_head = to_insert;
+        free_list_tail = to_insert;
+        to_insert->next_free = NULL;
+        to_insert->prev_free = NULL;
+        return;
+    }
 
+    MallocMetadata iter;
+    for (iter = free_list_head; iter; iter = iter->next_free)
+    {
+        if (iter->size >= to_insert->size)
+        {
+            break;
+        }
+    }
+    // now insert after size
+    if (!iter)
+    {
+        free_list_tail->next_free = to_insert;
+        to_insert->prev_free = free_list_tail;
+        free_list_tail = to_insert;
+        to_insert->next_free = NULL;
+    }
+
+    if (iter->size == to_insert->size)
+    {
+        while (iter->size == to_insert->size && iter < to_insert && iter->next_free
+                && iter->next_free->size == to_insert->size && iter->next_free < to_insert)
+        {
+            iter = iter->next_free;
+        }
+
+        // add after iterator
+        to_insert->prev_free = iter;
+        to_insert->next_free = iter->next_free;
+        iter->next_free = to_insert;
+        if (iter->next_free)
+        {
+            iter->next_free->prev_free = to_insert;
+        }
+        return;
+    }
+
+    if (!iter->prev_free)
+    {
+        to_insert->next_free = iter;
+        to_insert->prev_free = NULL;
+        iter->prev_free = to_insert;
+
+        free_list_head = to_insert;
+        return;
+    }
+
+    iter->prev_free->next_free = to_insert;
+    to_insert->next_free = iter;
+    iter->prev_free = to_insert;
+    to_insert->prev_free = iter->prev_free;
+}
 
 void _check_for_overflow()
 {
-
     for (MallocMetadata iter = head; iter; iter = iter->next)
     {
-        if (iter->is_free)
+        if (iter->cookie != random_cookie)
         {
-            counter++;
+            exit(0xdeadbeef);
         }
     }
-    return counter;
 }
 
 size_t _num_free_blocks()
