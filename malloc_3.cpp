@@ -10,6 +10,7 @@
 #include <assert.h>
 #include <sys/mman.h>
 
+#define TO_CUT_THRESHOLD 128
 // meta data containing linked list of information about allocated block
 struct mallocMetadata_t
 {
@@ -38,7 +39,152 @@ MallocMetadata free_list_tail = NULL;
 int random_cookie = rand();
 
 void _check_for_overflow();
+void _remove_from_free_list(MallocMetadata to_delete);
+void _remove_from_block_list(MallocMetadata to_delete);
+size_t _size_meta_data();
+void _insert_to_free_list(MallocMetadata to_insert);
+void _insert_to_block_list(MallocMetadata to_insert);
+void _cut_if_needed(MallocMetadata to_cut, size_t wanted_size);
 
+
+bool _is_free_block(MallocMetadata block)
+{
+    if (!block)
+    {
+        return false;
+    }
+    return block->is_free;
+}
+
+// can we assume that both neighbours of original block aren't free?
+void _cut_if_needed(MallocMetadata to_cut, size_t wanted_size)
+{
+    // we assume block->size >= wanted_size
+    if (!to_cut)
+    {
+        return;
+    }
+    if (to_cut->size - wanted_size - _size_meta_data() < TO_CUT_THRESHOLD)
+    {
+        // no need to cut
+        return;
+    }
+    // there is need to cut
+    MallocMetadata new_metadata = (MallocMetadata)((size_t)to_cut + _size_meta_data() + wanted_size);
+
+    _insert_to_block_list(new_metadata);
+    new_metadata->is_free = true;
+    new_metadata->size = to_cut->size - wanted_size - _size_meta_data();
+
+    _insert_to_free_list(new_metadata);
+
+
+}
+// with a given block we would like to create a new block that unites it and its neighbours
+void _coalesce_free_blocks(MallocMetadata block)
+{
+    if (!block)
+    {
+        return;
+    }
+
+    MallocMetadata prev = block->prev;
+    MallocMetadata next = block->next;
+
+    MallocMetadata new_block = block;
+
+    size_t total_size_of_coalesced_block = block->size;
+    _remove_from_free_list(block);
+
+
+    if (_is_free_block(next))
+    {
+        total_size_of_coalesced_block += next->size + _size_meta_data();
+        _remove_from_free_list(next);
+        _remove_from_block_list(next);
+    }
+
+    if (_is_free_block(prev))
+    {
+        total_size_of_coalesced_block += prev->size + _size_meta_data();
+        _remove_from_free_list(prev);
+        _remove_from_block_list(block);
+        new_block = prev;
+    }
+
+    new_block->size = total_size_of_coalesced_block;
+    _insert_to_free_list(new_block);
+}
+void _remove_from_block_list(MallocMetadata to_delete)
+{
+    if (!to_delete)
+    {
+        return;
+    }
+
+    MallocMetadata prev = to_delete->prev;
+    MallocMetadata next = to_delete->prev;
+
+    if (!prev) // is head of free list
+    {
+        head = next;
+        if (next) // head but not tail
+        {
+            next->prev = NULL;
+        } else { // head and tail
+            tail = prev;
+        }
+        return;
+    }
+    if (!next) // is tail but not head of free list
+    {
+        tail = prev;
+        prev->next = NULL;
+        return;
+    }
+    // is somewhere in the middle
+    prev->next = next;
+    next->prev = prev;
+
+    to_delete->next = NULL;
+    to_delete->prev = NULL;
+}
+void _remove_from_free_list(MallocMetadata to_delete)
+{
+    if (!to_delete)
+    {
+        return;
+    }
+
+    MallocMetadata prev = to_delete->prev_free;
+    MallocMetadata next = to_delete->next_free;
+
+    if (!prev) // is head of free list
+    {
+        free_list_head = next;
+        if (next) // head but not tail
+        {
+            next->prev_free = NULL;
+        } else { // head and tail
+            free_list_tail = prev;
+        }
+        return;
+    }
+    if (!next) // is tail but not head of free list
+    {
+        free_list_tail = prev;
+        prev->next_free = NULL;
+        return;
+    }
+    // is somewhere in the middle
+    prev->next_free = next;
+    next->prev_free = prev;
+
+    to_delete->next_free = NULL;
+    to_delete->prev_free = NULL;
+}
+
+// coalece and cut before adding
 
 // inserts a ready free block to the free list in a sorted manner.
 void _insert_to_free_list(MallocMetadata to_insert) // coalece and cut before adding
@@ -119,7 +265,7 @@ void _insert_to_free_list(MallocMetadata to_insert) // coalece and cut before ad
 
     if (!iter->prev_free)
     {
-        to_insert->next_free = iter;
+        to_insert->next_free =iter;
         to_insert->prev_free = NULL;
         iter->prev_free = to_insert;
 
@@ -133,6 +279,44 @@ void _insert_to_free_list(MallocMetadata to_insert) // coalece and cut before ad
     to_insert->prev_free = iter->prev_free;
 }
 
+void _insert_to_block_list(MallocMetadata to_insert)
+{
+    if (!to_insert)
+    {
+        return;
+    }
+
+    if (to_insert < head) // insert at head
+    {
+        head->prev = to_insert;
+        to_insert->next = head;
+        to_insert->prev = NULL;
+        head = to_insert;
+        return;
+    }
+
+    MallocMetadata iter = head->next;
+
+    MallocMetadata iter_prev = head;
+    while (iter && iter < to_insert) // search for last node smaller than to_insert
+    {
+        iter = iter->next;
+        iter_prev = iter_prev->next;
+    }
+
+    // add after prev
+    if (iter)
+    {
+        iter->prev = iter;
+    } else
+    {
+        tail = to_insert; // inserted last so tail updated
+    }
+
+    to_insert->next = iter;
+    iter_prev->next = to_insert;
+    to_insert->prev = iter_prev;
+}
 void _check_for_overflow()
 {
     for (MallocMetadata iter = head; iter; iter = iter->next)
