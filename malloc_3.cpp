@@ -35,16 +35,23 @@ MallocMetadata free_list_head = NULL;
 MallocMetadata free_list_tail = NULL;
 
 
-
 int random_cookie = rand();
 
 void _check_for_overflow();
+
 void _remove_from_free_list(MallocMetadata to_delete);
+
 void _remove_from_block_list(MallocMetadata to_delete);
+
 size_t _size_meta_data();
+
 void _insert_to_free_list(MallocMetadata to_insert);
+
 void _insert_to_block_list(MallocMetadata to_insert);
+
 void _cut_if_needed(MallocMetadata to_cut, size_t wanted_size);
+
+void _increase_wilderness_size_if_needed(size_t wanted_size);
 
 
 bool _is_free_block(MallocMetadata block)
@@ -70,7 +77,7 @@ void _cut_if_needed(MallocMetadata to_cut, size_t wanted_size)
         return;
     }
     // there is need to cut
-    MallocMetadata new_metadata = (MallocMetadata)((size_t)to_cut + _size_meta_data() + wanted_size);
+    MallocMetadata new_metadata = (MallocMetadata) ((size_t) to_cut + _size_meta_data() + wanted_size);
 
     _insert_to_block_list(new_metadata);
     new_metadata->is_free = true;
@@ -80,6 +87,7 @@ void _cut_if_needed(MallocMetadata to_cut, size_t wanted_size)
 
 
 }
+
 // with a given block we would like to create a new block that unites it and its neighbours
 void _coalesce_free_blocks(MallocMetadata block)
 {
@@ -115,6 +123,7 @@ void _coalesce_free_blocks(MallocMetadata block)
     new_block->size = total_size_of_coalesced_block;
     _insert_to_free_list(new_block);
 }
+
 void _remove_from_block_list(MallocMetadata to_delete)
 {
     if (!to_delete)
@@ -131,7 +140,8 @@ void _remove_from_block_list(MallocMetadata to_delete)
         if (next) // head but not tail
         {
             next->prev = NULL;
-        } else { // head and tail
+        } else
+        { // head and tail
             tail = prev;
         }
         return;
@@ -149,6 +159,7 @@ void _remove_from_block_list(MallocMetadata to_delete)
     to_delete->next = NULL;
     to_delete->prev = NULL;
 }
+
 void _remove_from_free_list(MallocMetadata to_delete)
 {
     if (!to_delete)
@@ -165,7 +176,8 @@ void _remove_from_free_list(MallocMetadata to_delete)
         if (next) // head but not tail
         {
             next->prev_free = NULL;
-        } else { // head and tail
+        } else
+        { // head and tail
             free_list_tail = prev;
         }
         return;
@@ -182,6 +194,30 @@ void _remove_from_free_list(MallocMetadata to_delete)
 
     to_delete->next_free = NULL;
     to_delete->prev_free = NULL;
+}
+
+// send only if wilderness is free and all other options are non-viable
+void _increase_wilderness_size_if_needed(size_t wanted_size)
+{
+    if (!head)
+    {
+        return;
+    }
+    if (!tail)
+    {
+        return;
+    }
+    if (wanted_size <= tail->size)
+    {
+        return;
+    }
+    // need to increase wilderness size
+    if (sbrk(wanted_size - tail->size) == (void *) -1)
+    {
+        return;
+    }
+
+    tail->size = wanted_size;
 }
 
 // coalece and cut before adding
@@ -242,7 +278,7 @@ void _insert_to_free_list(MallocMetadata to_insert) // coalece and cut before ad
             return;
         }
         while (iter->size == to_insert->size && iter < to_insert && iter->next_free
-                && iter->next_free->size == to_insert->size && iter->next_free < to_insert)
+               && iter->next_free->size == to_insert->size && iter->next_free < to_insert)
         {
             iter = iter->next_free;
         }
@@ -265,7 +301,7 @@ void _insert_to_free_list(MallocMetadata to_insert) // coalece and cut before ad
 
     if (!iter->prev_free)
     {
-        to_insert->next_free =iter;
+        to_insert->next_free = iter;
         to_insert->prev_free = NULL;
         iter->prev_free = to_insert;
 
@@ -317,6 +353,7 @@ void _insert_to_block_list(MallocMetadata to_insert)
     iter_prev->next = to_insert;
     to_insert->prev = iter_prev;
 }
+
 void _check_for_overflow()
 {
     for (MallocMetadata iter = head; iter; iter = iter->next)
