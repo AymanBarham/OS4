@@ -206,6 +206,11 @@ void _coalesce_free_blocks(MallocMetadata block)
     MallocMetadata new_block = block;
 
     size_t total_size_of_coalesced_block = block->size;
+    if (!_is_free_block(next) && !_is_free_block(prev))
+    {
+        return;
+    }
+
     _remove_from_free_list(block);
 
     if (_is_free_block(next))
@@ -223,6 +228,7 @@ void _coalesce_free_blocks(MallocMetadata block)
         _remove_from_block_list(block);
         new_block = prev;
     }
+
 
     new_block->size = total_size_of_coalesced_block;
     _insert_to_free_list(new_block);
