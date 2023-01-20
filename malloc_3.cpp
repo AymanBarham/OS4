@@ -518,6 +518,10 @@ size_t _num_allocated_blocks()
         counter++;
     }
 
+    for (MallocMetadata iter = mmap_head; iter; iter = iter->next)
+    {
+        counter++;
+    }
     return counter;
 }
 
@@ -526,6 +530,11 @@ size_t _num_allocated_bytes()
     size_t counter = 0;
 
     for (MallocMetadata iter = head; iter; iter = iter->next)
+    {
+        counter += iter->size;
+    }
+
+    for (MallocMetadata iter = mmap_head; iter; iter = iter->next)
     {
         counter += iter->size;
     }
