@@ -11,6 +11,9 @@
 #include <sys/mman.h>
 
 #define TO_CUT_THRESHOLD 128
+#define MMAP_THRESHOLD 131072
+#define MAX_BLOCK_SIZE 100000000
+
 // meta data containing linked list of information about allocated block
 struct mallocMetadata_t
 {
@@ -34,6 +37,7 @@ MallocMetadata tail = NULL;
 MallocMetadata free_list_head = NULL;
 MallocMetadata free_list_tail = NULL;
 
+MallocMetadata mmap_head = NULL;
 
 int random_cookie = rand();
 
@@ -47,12 +51,108 @@ size_t _size_meta_data();
 
 void _insert_to_free_list(MallocMetadata to_insert);
 
+MallocMetadata _find_best_fit_in_free_list(size_t size);
+
 void _insert_to_block_list(MallocMetadata to_insert);
 
 void _cut_if_needed(MallocMetadata to_cut, size_t wanted_size);
 
-void _increase_wilderness_size_if_needed(size_t wanted_size);
+void _insert_to_mmap_list(MallocMetadata to_insert);
 
+void _remove_from_mmap_list(MallocMetadata to_remove);
+
+MallocMetadata _allocate_mmap(size_t wanted_size);
+
+MallocMetadata _increase_wilderness_size_if_needed(size_t wanted_size);
+
+bool _is_mmap_allocation(MallocMetadata alloc);
+
+void _insert_to_mmap_list(MallocMetadata to_insert)
+{
+    if (!to_insert)
+    {
+        return;
+    }
+    if (!mmap_head)
+    {
+        mmap_head = to_insert;
+        mmap_head->next = NULL;
+        mmap_head->prev = NULL;
+        return;
+    }
+
+    MallocMetadata iter = mmap_head;
+    while (iter->next)
+    {
+        iter = iter->next;
+    }
+    iter->next = to_insert;
+    to_insert->prev = iter;
+
+}
+
+void _remove_from_mmap_list(MallocMetadata to_remove)
+{
+    if (!to_remove)
+    {
+        return;
+    }
+    if (!mmap_head)
+    {
+        return;
+    }
+    MallocMetadata iter = mmap_head;
+    while (iter)
+    {
+        if (iter == to_remove)
+        {
+            break;
+        }
+        iter = iter->next;
+    }
+    if (!iter)
+    {
+        // not found
+        return;
+    }
+    if (!iter->prev && !iter->next)
+    {
+        mmap_head = NULL;
+        return;
+    }
+
+    if (iter->prev)
+    {
+        iter->prev->next = to_remove->next;
+
+    }
+    if (iter->next)
+    {
+        iter->next->prev = to_remove->prev;
+    }
+}
+
+bool _is_mmap_allocation(MallocMetadata alloc)
+{
+    if (!alloc)
+    {
+        return false;
+    }
+    return alloc->size >= MMAP_THRESHOLD;
+}
+
+// returns NULL if no fit is possible
+MallocMetadata _find_best_fit_in_free_list(size_t size)
+{
+    for (MallocMetadata iter = free_list_head; iter; iter = iter->next_free)
+    {
+        if (iter->size <= size)
+        {
+            return iter;
+        }
+    }
+    return NULL;
+}
 
 bool _is_free_block(MallocMetadata block)
 {
@@ -95,6 +195,10 @@ void _coalesce_free_blocks(MallocMetadata block)
     {
         return;
     }
+    if (!block->is_free)
+    {
+        return;
+    }
 
     MallocMetadata prev = block->prev;
     MallocMetadata next = block->next;
@@ -103,7 +207,6 @@ void _coalesce_free_blocks(MallocMetadata block)
 
     size_t total_size_of_coalesced_block = block->size;
     _remove_from_free_list(block);
-
 
     if (_is_free_block(next))
     {
@@ -116,6 +219,7 @@ void _coalesce_free_blocks(MallocMetadata block)
     {
         total_size_of_coalesced_block += prev->size + _size_meta_data();
         _remove_from_free_list(prev);
+
         _remove_from_block_list(block);
         new_block = prev;
     }
@@ -197,27 +301,40 @@ void _remove_from_free_list(MallocMetadata to_delete)
 }
 
 // send only if wilderness is free and all other options are non-viable
-void _increase_wilderness_size_if_needed(size_t wanted_size)
+// return NULL if :
+//      head is NULL so list is empty
+//      tail is NULL so list is empty
+//      if the wilderness block isn't free
+//      if sbrk fails
+// otherwise increases wilderness size after allocating size using sbrk
+MallocMetadata _increase_wilderness_size_if_needed(size_t wanted_size)
 {
     if (!head)
     {
-        return;
+        return NULL;
     }
     if (!tail)
     {
-        return;
+        return NULL;
+    }
+    if (!tail->is_free)
+    {
+        return NULL;
     }
     if (wanted_size <= tail->size)
     {
-        return;
+        tail->is_free = false;
+        return tail;
     }
     // need to increase wilderness size
     if (sbrk(wanted_size - tail->size) == (void *) -1)
     {
-        return;
+        return NULL;
     }
 
     tail->size = wanted_size;
+    tail->is_free = false;
+    return tail;
 }
 
 // coalece and cut before adding
@@ -428,21 +545,40 @@ size_t _num_meta_data_bytes()
 
 void *smalloc(size_t size)
 {
-    if (size == 0 || size > 100000000)
+    _check_for_overflow();
+    if (size == 0 || size > MAX_BLOCK_SIZE)
     {
         return NULL;
     }
 
     void *allocated_ptr;
 
+
+    if (size >= MMAP_THRESHOLD)
+    {
+        MallocMetadata tmp = (MallocMetadata) allocated_ptr;
+        size_t real_size = _size_meta_data() + size;
+        allocated_ptr = mmap(NULL, real_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        if (allocated_ptr == (void *) -1)
+        {
+            return NULL;
+        }
+
+        _insert_to_mmap_list((MallocMetadata) allocated_ptr);
+        tmp->size = size;
+        tmp->cookie = random_cookie;
+        return (void *) ((size_t) allocated_ptr + _size_meta_data());
+    }
     // empty list
     if (!head)
     {
         head = (MallocMetadata) sbrk(_size_meta_data());
         if (head == (void *) -1)
         {
+            head = NULL;
             return NULL;
         }
+        head->cookie = random_cookie;
         head->size = size;
         head->prev = NULL;
         head->next = NULL;
@@ -452,6 +588,7 @@ void *smalloc(size_t size)
         allocated_ptr = sbrk(size);
         if (allocated_ptr == (void *) -1) // syscall failed
         {
+            head = NULL;
             return NULL;
         }
 
@@ -459,21 +596,23 @@ void *smalloc(size_t size)
         return allocated_ptr;
     }
 
-    MallocMetadata iter;
-    // not first allocation
-    for (iter = head; iter; iter = iter->next)
+    // here we go
+    MallocMetadata best_fit = _find_best_fit_in_free_list(size);
+
+
+    if (best_fit) // found fit really
     {
-        if (iter->is_free && iter->size >= size)
-        {
-            // found first fit block
-            break;
-        }
+        _remove_from_free_list(best_fit);
+        _cut_if_needed(best_fit, size);
+        best_fit->is_free = false;
+        return (void *) ((size_t) best_fit + _size_meta_data());
     }
 
-    if (iter) // found fit really
+    best_fit = _increase_wilderness_size_if_needed(size);
+    if (best_fit)
     {
-        iter->is_free = false;
-        return (void *) ((size_t) iter + _size_meta_data());
+        // increased wilderness and got it;
+        return (void *) ((size_t) best_fit + _size_meta_data());
     }
 
     // must increase size of heap
@@ -482,13 +621,9 @@ void *smalloc(size_t size)
     {
         return NULL;
     }
-    allocated_metadata->next = NULL;
+    _insert_to_block_list(allocated_metadata);
+    allocated_metadata->cookie = random_cookie;
     allocated_metadata->is_free = false;
-    allocated_metadata->prev = tail;
-    tail->next = allocated_metadata;
-    allocated_metadata->size = size;
-
-    tail = allocated_metadata;
 
     allocated_ptr = sbrk(size);
     if (allocated_ptr == (void *) -1)
@@ -501,7 +636,8 @@ void *smalloc(size_t size)
 
 void *scalloc(size_t num, size_t size)
 {
-    if (size == 0 || num * size > 100000000)
+    _check_for_overflow();
+    if (size == 0 || num * size > MAX_BLOCK_SIZE)
     {
         return NULL;
     }
@@ -520,38 +656,204 @@ void *scalloc(size_t num, size_t size)
 
 void sfree(void *p)
 {
+    _check_for_overflow();
     if (!p)
     {
         return;
     }
     MallocMetadata metadata_ptr = (MallocMetadata) ((size_t) p - _size_meta_data());
+    if (_is_mmap_allocation(metadata_ptr))
+    {
+        _remove_from_mmap_list(metadata_ptr);
+        munmap((void *) metadata_ptr, _size_meta_data() + metadata_ptr->size);
+        return;
+    }
     if (metadata_ptr->is_free)
     {
         return;
     }
     metadata_ptr->is_free = true;
+    _insert_to_free_list(metadata_ptr);
+    _coalesce_free_blocks(metadata_ptr);
 }
 
 void *srealloc(void *oldp, size_t size)
 {
-    if (size == 0 || size > 100000000)
+    _check_for_overflow();
+    if (size == 0 || size > MAX_BLOCK_SIZE)
     {
         return NULL;
     }
 
     void *allocated_ptr;
+    bool prev_state, next_state;
+    MallocMetadata next_to_cut;
     if (!oldp) // NULL received
     {
         return smalloc(size);
     }
 
+    /*---------------------------------- case a start----------------------------------*/
     MallocMetadata old_metadata = (MallocMetadata) ((size_t) oldp - _size_meta_data());
 
     if (size <= old_metadata->size)
     {
         old_metadata->is_free = false;
+
+        next_to_cut = old_metadata->next;
+        _cut_if_needed(old_metadata, size);
+        _coalesce_free_blocks(next_to_cut);
+
         return oldp;
     }
+    /*---------------------------------- case a done ----------------------------------*/
+    /*---------------------------------- case b start----------------------------------*/
+
+    if (old_metadata->prev && old_metadata->prev->is_free &&
+        old_metadata->prev->size + old_metadata->size + _size_meta_data() >= size)
+    {
+        MallocMetadata prev = old_metadata->prev;
+        // size of prev is enough
+        if (old_metadata->next)
+        {
+            next_state = old_metadata->next->is_free;
+            old_metadata->next->is_free = false;
+        }
+        _coalesce_free_blocks(old_metadata);
+        if (old_metadata->next)
+        {
+            old_metadata->next->is_free = next_state;
+        }
+
+        _cut_if_needed(prev, size);
+        _coalesce_free_blocks(old_metadata);
+
+        allocated_ptr =  (void *) ((size_t) prev + _size_meta_data());
+        memmove(allocated_ptr, oldp, old_metadata->size);
+
+        return allocated_ptr;
+    }
+    if (old_metadata->prev && old_metadata->prev->is_free &&
+        old_metadata->prev->size + old_metadata->size + _size_meta_data() < size)
+    {
+        if (old_metadata == tail)
+        {
+            MallocMetadata prev = old_metadata->prev;
+            // size of prev is enough
+            if (old_metadata->next)
+            {
+                next_state = old_metadata->next->is_free;
+                old_metadata->next->is_free = false;
+            }
+            _coalesce_free_blocks(old_metadata);
+            if (old_metadata->next)
+            {
+                old_metadata->next->is_free = next_state;
+            }
+
+            _increase_wilderness_size_if_needed(size);
+
+            allocated_ptr =  (void *) ((size_t) prev + _size_meta_data());
+            memmove(allocated_ptr, oldp, old_metadata->size);
+
+            return allocated_ptr;
+        }
+    }
+    /*---------------------------------- case b done ----------------------------------*/
+    /*---------------------------------- case c start----------------------------------*/
+    if (old_metadata == tail)
+    {
+        _increase_wilderness_size_if_needed(size);
+        return (void *) ((size_t) old_metadata + _size_meta_data());
+    }
+    /*---------------------------------- case c done ----------------------------------*/
+    /*---------------------------------- case d start----------------------------------*/
+    if (old_metadata->next && old_metadata->next->is_free &&
+        old_metadata->next->size + old_metadata->size + _size_meta_data() >= size)
+    {
+        // size of prev is enough
+        if (old_metadata->prev)
+        {
+            prev_state = old_metadata->prev->is_free;
+            old_metadata->prev->is_free = false;
+        }
+        _coalesce_free_blocks(old_metadata);
+        if (old_metadata->prev)
+        {
+            old_metadata->prev->is_free = prev_state;
+        }
+
+        next_to_cut = old_metadata->next;
+        _cut_if_needed(old_metadata, size);
+        _coalesce_free_blocks(next_to_cut);
+
+        return (void *) ((size_t) old_metadata + _size_meta_data());
+    }
+    /*---------------------------------- case d done ----------------------------------*/
+    /*---------------------------------- case e start----------------------------------*/
+    if (old_metadata->next && old_metadata->next->is_free && old_metadata->prev && old_metadata->prev->is_free &&
+        old_metadata->next->size + old_metadata->size + old_metadata->prev->size + 2 * _size_meta_data() >= size)
+    {
+        MallocMetadata prev = old_metadata->prev;
+        _coalesce_free_blocks(old_metadata);
+
+        _cut_if_needed(prev, size);
+        _coalesce_free_blocks(old_metadata);
+
+        allocated_ptr =  (void *) ((size_t) prev + _size_meta_data());
+        memmove(allocated_ptr, oldp, old_metadata->size);
+
+        return allocated_ptr;
+    }
+    /*---------------------------------- case e done ----------------------------------*/
+    /*---------------------------------- case f start----------------------------------*/
+    if (old_metadata->next && old_metadata->next == tail && old_metadata->next->is_free)
+    {
+        if (old_metadata->prev && old_metadata->prev->is_free)
+        {
+            MallocMetadata prev = old_metadata->prev;
+            _coalesce_free_blocks(old_metadata);
+
+            _increase_wilderness_size_if_needed(size);
+
+            allocated_ptr =  (void *) ((size_t) prev + _size_meta_data());
+            memmove(allocated_ptr, oldp, old_metadata->size);
+
+            return allocated_ptr;
+        }
+
+        if (old_metadata->prev)
+        {
+            prev_state = old_metadata->prev->is_free;
+            old_metadata->prev->is_free = false;
+        }
+        _coalesce_free_blocks(old_metadata);
+        if (old_metadata->prev)
+        {
+            old_metadata->prev->is_free = prev_state;
+        }
+        _increase_wilderness_size_if_needed(size);
+        return (void *) ((size_t) old_metadata + _size_meta_data());
+    }
+    /*---------------------------------- case f done ----------------------------------*/
+    /*---------------------------------- case g start----------------------------------*/
+    MallocMetadata to_allocate = _find_best_fit_in_free_list(size);
+    if (to_allocate)
+    {
+        to_allocate->is_free = false;
+        allocated_ptr =  (void *) ((size_t) to_allocate + _size_meta_data());
+        _remove_from_free_list(to_allocate);
+
+        next_to_cut = to_allocate->next;
+        _cut_if_needed(to_allocate, size);
+        _coalesce_free_blocks(next_to_cut);
+
+        memmove(allocated_ptr, oldp, old_metadata->size);
+        sfree(oldp);
+        return allocated_ptr;
+    }
+    /*---------------------------------- case g done ----------------------------------*/
+    /*---------------------------------- case h start----------------------------------*/
 
     allocated_ptr = smalloc(size);
     if (!allocated_ptr)
@@ -561,7 +863,8 @@ void *srealloc(void *oldp, size_t size)
 
     std::memmove(allocated_ptr, oldp, old_metadata->size); // maybe bug here
     sfree(oldp);
-
     return allocated_ptr;
+    /*---------------------------------- case h done ----------------------------------*/
+
 }
 
