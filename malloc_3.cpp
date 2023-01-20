@@ -242,7 +242,7 @@ void _remove_from_block_list(MallocMetadata to_delete)
     }
 
     MallocMetadata prev = to_delete->prev;
-    MallocMetadata next = to_delete->prev;
+    MallocMetadata next = to_delete->next;
 
     if (!prev) // is head of free list
     {
