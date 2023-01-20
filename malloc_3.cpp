@@ -864,6 +864,7 @@ void *srealloc(void *oldp, size_t size)
     std::memmove(allocated_ptr, oldp, old_metadata->size); // maybe bug here
     sfree(oldp);
     return allocated_ptr;
+
     /*---------------------------------- case h done ----------------------------------*/
 
 }
