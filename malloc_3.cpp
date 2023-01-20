@@ -690,7 +690,7 @@ void sfree(void *p)
     }
     metadata_ptr->is_free = true;
     _insert_to_free_list(metadata_ptr);
-    _coalesce_free_blocks(metadata_ptr);
+    //_coalesce_free_blocks(metadata_ptr);
 }
 
 void *srealloc(void *oldp, size_t size)
