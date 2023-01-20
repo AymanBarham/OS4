@@ -146,7 +146,7 @@ MallocMetadata _find_best_fit_in_free_list(size_t size)
 {
     for (MallocMetadata iter = free_list_head; iter; iter = iter->next_free)
     {
-        if (iter->size <= size)
+        if (iter->size >= size)
         {
             return iter;
         }
