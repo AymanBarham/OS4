@@ -631,6 +631,7 @@ void *smalloc(size_t size)
         return NULL;
     }
     _insert_to_block_list(allocated_metadata);
+    allocated_metadata->size = size;
     allocated_metadata->cookie = random_cookie;
     allocated_metadata->is_free = false;
 
