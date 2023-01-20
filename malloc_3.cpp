@@ -556,18 +556,18 @@ void *smalloc(size_t size)
 
     if (size >= MMAP_THRESHOLD)
     {
-        MallocMetadata tmp = (MallocMetadata) allocated_ptr;
+        MallocMetadata tmp;
         size_t real_size = _size_meta_data() + size;
-        allocated_ptr = mmap(NULL, real_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        if (allocated_ptr == (void *) -1)
+        tmp =(MallocMetadata) mmap(NULL, real_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        if (tmp == (void *) -1)
         {
             return NULL;
         }
 
-        _insert_to_mmap_list((MallocMetadata) allocated_ptr);
+        _insert_to_mmap_list(tmp);
         tmp->size = size;
         tmp->cookie = random_cookie;
-        return (void *) ((size_t) allocated_ptr + _size_meta_data());
+        return (void *) ((size_t) tmp + _size_meta_data());
     }
     // empty list
     if (!head)
