@@ -892,10 +892,13 @@ void *srealloc(void *oldp, size_t size)
             old_metadata->prev->is_free = false;
         }
         _coalesce_free_blocks(old_metadata);
+        _remove_from_free_list(old_metadata);
+
         if (old_metadata->prev)
         {
             old_metadata->prev->is_free = prev_state;
         }
+        old_metadata->is_free = false;
         _increase_wilderness_size_if_needed(size);
         return (void *) ((size_t) old_metadata + _size_meta_data());
     }
