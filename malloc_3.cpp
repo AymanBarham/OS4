@@ -763,6 +763,7 @@ void *srealloc(void *oldp, size_t size)
         }
 
         _cut_if_needed(prev, size);
+        prev->is_free = false;
         _coalesce_free_blocks(prev->next);
 //        _coalesce_free_blocks(old_metadata);
 
