@@ -733,8 +733,8 @@ void *srealloc(void *oldp, size_t size)
         old_metadata->is_free = false;
 
         next_to_cut = old_metadata->next;
-        //_cut_if_needed(old_metadata, size);
-        //_coalesce_free_blocks(next_to_cut);
+        _cut_if_needed(old_metadata, size);
+        _coalesce_free_blocks(next_to_cut);
 
         return oldp;
     }
@@ -795,6 +795,7 @@ void *srealloc(void *oldp, size_t size)
     /*---------------------------------- case c start----------------------------------*/
     if (old_metadata == tail)
     {
+        tail->is_free = true;
         _increase_wilderness_size_if_needed(size);
         return (void *) ((size_t) old_metadata + _size_meta_data());
     }
