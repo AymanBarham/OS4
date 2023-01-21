@@ -202,10 +202,10 @@ void _coalesce_free_blocks(MallocMetadata block)
     {
         return;
     }
-    if (!block->is_free)
-    {
-        return;
-    }
+//    if (!block->is_free)
+//    {
+//        return;
+//    }
 
     MallocMetadata prev = block->prev;
     MallocMetadata next = block->next;
@@ -218,7 +218,10 @@ void _coalesce_free_blocks(MallocMetadata block)
         return;
     }
 
-    _remove_from_free_list(block);
+    if (block->is_free)
+    {
+        _remove_from_free_list(block);
+    }
     _remove_from_block_list(block);
 
     if (_is_free_block(next))
@@ -759,6 +762,7 @@ void *srealloc(void *oldp, size_t size)
 
         _cut_if_needed(prev, size);
         _coalesce_free_blocks(old_metadata);
+
 
         allocated_ptr =  (void *) ((size_t) prev + _size_meta_data());
         memmove(allocated_ptr, oldp, old_metadata->size);
