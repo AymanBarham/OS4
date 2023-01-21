@@ -879,7 +879,7 @@ void *srealloc(void *oldp, size_t size)
             _coalesce_free_blocks(old_metadata);
             _remove_from_free_list(old_metadata);
 
-            old_metadata->is_free = false;
+            old_metadata->is_free = true;
             _increase_wilderness_size_if_needed(size);
 
             allocated_ptr =  (void *) ((size_t) prev + _size_meta_data());
