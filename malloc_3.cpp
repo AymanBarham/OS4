@@ -794,7 +794,10 @@ void *srealloc(void *oldp, size_t size)
                 next->is_free = next_state;
             }
 
+            prev->is_free = true;
             _increase_wilderness_size_if_needed(size);
+            prev->is_free = false;
+
 
             allocated_ptr =  (void *) ((size_t) prev + _size_meta_data());
             memmove(allocated_ptr, oldp, old_metadata->size);
