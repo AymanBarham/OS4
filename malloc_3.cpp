@@ -640,6 +640,7 @@ void *smalloc(size_t size)
     best_fit = _increase_wilderness_size_if_needed(size);
     if (best_fit)
     {
+        _remove_from_free_list(best_fit);
         // increased wilderness and got it;
         return (void *) ((size_t) best_fit + _size_meta_data());
     }
