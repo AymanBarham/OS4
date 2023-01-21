@@ -176,7 +176,7 @@ void _cut_if_needed(MallocMetadata to_cut, size_t wanted_size)
     {
         return;
     }
-    if (new_size < TO_CUT_THRESHOLD)
+    if (to_cut->size - wanted_size < TO_CUT_THRESHOLD + _size_meta_data())
     {
         // no need to cut
         return;
