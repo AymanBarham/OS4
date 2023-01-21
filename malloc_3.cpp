@@ -187,6 +187,7 @@ void _cut_if_needed(MallocMetadata to_cut, size_t wanted_size)
     _insert_to_block_list(new_metadata);
     new_metadata->is_free = true;
     new_metadata->size = new_size;
+    new_metadata->cookie = random_cookie; // new node means cookie fix
 
     to_cut->size = wanted_size;
     _insert_to_free_list(new_metadata);
