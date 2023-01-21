@@ -755,6 +755,8 @@ void *srealloc(void *oldp, size_t size)
             old_metadata->next->is_free = false;
         }
         _coalesce_free_blocks(old_metadata);
+        _remove_from_free_list(prev);
+
         if (old_metadata->next)
         {
             old_metadata->next->is_free = next_state;
