@@ -763,7 +763,8 @@ void *srealloc(void *oldp, size_t size)
         }
 
         _cut_if_needed(prev, size);
-        _coalesce_free_blocks(old_metadata);
+        _coalesce_free_blocks(prev->next);
+//        _coalesce_free_blocks(old_metadata);
 
 
         allocated_ptr =  (void *) ((size_t) prev + _size_meta_data());
