@@ -41,6 +41,8 @@ MallocMetadata mmap_head = NULL;
 
 int random_cookie = rand();
 
+void _update_tail();
+
 void _check_for_overflow();
 
 void _remove_from_free_list(MallocMetadata to_delete);
@@ -67,6 +69,19 @@ MallocMetadata _increase_wilderness_size_if_needed(size_t wanted_size);
 
 bool _is_mmap_allocation(MallocMetadata alloc);
 
+void _update_tail()
+{
+    if (!head)
+    {
+        return;
+    }
+    MallocMetadata iter = head;
+    while (iter->next)
+    {
+        iter = iter->next;
+    }
+    tail = iter;
+}
 void _insert_to_mmap_list(MallocMetadata to_insert)
 {
     if (!to_insert)
@@ -245,6 +260,7 @@ void _coalesce_free_blocks(MallocMetadata block)
     new_block->size = total_size_of_coalesced_block;
     _insert_to_free_list(new_block);
     _insert_to_block_list(new_block);
+    _update_tail();
 }
 
 void _remove_from_block_list(MallocMetadata to_delete)
@@ -775,7 +791,7 @@ void *srealloc(void *oldp, size_t size)
         return allocated_ptr;
     }
     if (old_metadata->prev && old_metadata->prev->is_free &&
-        old_metadata->prev->size + old_metadata->size + _size_meta_data() >= size)
+        old_metadata->prev->size + old_metadata->size + _size_meta_data() < size)
     {
         if (old_metadata == tail)
         {
@@ -796,7 +812,6 @@ void *srealloc(void *oldp, size_t size)
 
             prev->is_free = true;
             _increase_wilderness_size_if_needed(size);
-            prev->is_free = false;
 
 
             allocated_ptr =  (void *) ((size_t) prev + _size_meta_data());
