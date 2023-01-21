@@ -780,16 +780,18 @@ void *srealloc(void *oldp, size_t size)
         if (old_metadata == tail)
         {
             MallocMetadata prev = old_metadata->prev;
+            MallocMetadata next = old_metadata->next;
             // size of prev is enough
-            if (old_metadata->next)
+            if (next)
             {
-                next_state = old_metadata->next->is_free;
-                old_metadata->next->is_free = false;
+                next_state = next->is_free;
+                next->is_free = false;
             }
             _coalesce_free_blocks(old_metadata);
-            if (old_metadata->next)
+            _remove_from_free_list(prev);
+            if (next)
             {
-                old_metadata->next->is_free = next_state;
+                next->is_free = next_state;
             }
 
             _increase_wilderness_size_if_needed(size);
