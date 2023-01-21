@@ -171,7 +171,12 @@ void _cut_if_needed(MallocMetadata to_cut, size_t wanted_size)
     {
         return;
     }
-    if (to_cut->size - wanted_size - _size_meta_data() < TO_CUT_THRESHOLD)
+    size_t new_size = to_cut->size - wanted_size - _size_meta_data();
+    if (to_cut->size - wanted_size <= 0)
+    {
+        return;
+    }
+    if (new_size < TO_CUT_THRESHOLD)
     {
         // no need to cut
         return;
@@ -181,7 +186,7 @@ void _cut_if_needed(MallocMetadata to_cut, size_t wanted_size)
 
     _insert_to_block_list(new_metadata);
     new_metadata->is_free = true;
-    new_metadata->size = to_cut->size - wanted_size - _size_meta_data();
+    new_metadata->size = new_size;
 
     _insert_to_free_list(new_metadata);
 
@@ -212,6 +217,7 @@ void _coalesce_free_blocks(MallocMetadata block)
     }
 
     _remove_from_free_list(block);
+    _remove_from_block_list(block);
 
     if (_is_free_block(next))
     {
@@ -224,14 +230,16 @@ void _coalesce_free_blocks(MallocMetadata block)
     {
         total_size_of_coalesced_block += prev->size + _size_meta_data();
         _remove_from_free_list(prev);
+        _remove_from_block_list(prev);
 
-        _remove_from_block_list(block);
         new_block = prev;
     }
 
 
+
     new_block->size = total_size_of_coalesced_block;
     _insert_to_free_list(new_block);
+    _insert_to_block_list(new_block);
 }
 
 void _remove_from_block_list(MallocMetadata to_delete)
@@ -444,7 +452,13 @@ void _insert_to_block_list(MallocMetadata to_insert)
     {
         return;
     }
-
+    if (!head)
+    {
+        head = to_insert;
+        head->next = NULL;
+        head->prev = NULL;
+        return;
+    }
     if (to_insert < head) // insert at head
     {
         head->prev = to_insert;
@@ -466,7 +480,7 @@ void _insert_to_block_list(MallocMetadata to_insert)
     // add after prev
     if (iter)
     {
-        iter->prev = iter;
+        iter->prev = to_insert;
     } else
     {
         tail = to_insert; // inserted last so tail updated
