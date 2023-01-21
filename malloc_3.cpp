@@ -775,7 +775,7 @@ void *srealloc(void *oldp, size_t size)
         return allocated_ptr;
     }
     if (old_metadata->prev && old_metadata->prev->is_free &&
-        old_metadata->prev->size + old_metadata->size + _size_meta_data() < size)
+        old_metadata->prev->size + old_metadata->size + _size_meta_data() >= size)
     {
         if (old_metadata == tail)
         {
