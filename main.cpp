@@ -6,15 +6,24 @@
 #include "malloc_e.h"
 int main()
 {
+
     void *base = sbrk(0);
-    char *a = (char *)smalloc(16 + MIN_SPLIT_SIZE * 2 + _size_meta_data());
+    int *a = (int *)srealloc(nullptr, 30 * sizeof(int));
     REQUIRE(a != nullptr);
 
-    sfree(a);
+    for (int i = 0; i < 10; i++)
+    {
+        a[i] = i;
+    }
 
-    char *b = (char *)smalloc(16);
+
+    int *b = (int *)srealloc(a, 10 * sizeof(int));
     REQUIRE(b != nullptr);
     REQUIRE(b == a);
+    for (int i = 0; i < 10; i++)
+    {
+        REQUIRE(b[i] == i);
+    }
 
 
     sfree(b);

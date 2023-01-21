@@ -14,4 +14,5 @@
 
 void *smalloc(size_t size);
 void sfree(void *p);
+void* srealloc(void* p, size_t new_size);
 size_t _size_meta_data();
