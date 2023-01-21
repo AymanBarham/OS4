@@ -858,9 +858,11 @@ void *srealloc(void *oldp, size_t size)
     {
         MallocMetadata prev = old_metadata->prev;
         _coalesce_free_blocks(old_metadata);
+        _remove_from_free_list(prev);
 
         _cut_if_needed(prev, size);
-        _coalesce_free_blocks(old_metadata);
+        prev->is_free = false;
+        _coalesce_free_blocks(prev->next);
 
         allocated_ptr =  (void *) ((size_t) prev + _size_meta_data());
         memmove(allocated_ptr, oldp, old_metadata->size);
