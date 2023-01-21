@@ -188,6 +188,7 @@ void _cut_if_needed(MallocMetadata to_cut, size_t wanted_size)
     new_metadata->is_free = true;
     new_metadata->size = new_size;
 
+    to_cut->size = wanted_size;
     _insert_to_free_list(new_metadata);
 
 
@@ -356,7 +357,6 @@ MallocMetadata _increase_wilderness_size_if_needed(size_t wanted_size)
 // inserts a ready free block to the free list in a sorted manner.
 void _insert_to_free_list(MallocMetadata to_insert) // coalece and cut before adding
 {
-    _check_for_overflow();
     if (!to_insert)
     {
         return;
