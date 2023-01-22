@@ -743,9 +743,18 @@ void *srealloc(void *oldp, size_t size)
     {
         return smalloc(size);
     }
-
-    /*---------------------------------- case a start----------------------------------*/
     MallocMetadata old_metadata = (MallocMetadata) ((size_t) oldp - _size_meta_data());
+
+    if (_is_mmap_allocation(old_metadata))
+    {
+        if (size == old_metadata->size)
+        {
+            return oldp;
+        }
+        sfree(oldp);
+        return smalloc(size);
+    }
+    /*---------------------------------- case a start----------------------------------*/
 
     if (size <= old_metadata->size)
     {
