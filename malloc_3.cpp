@@ -745,6 +745,7 @@ void *srealloc(void *oldp, size_t size)
     }
     MallocMetadata old_metadata = (MallocMetadata) ((size_t) oldp - _size_meta_data());
 
+    /*---------------------------------- case mmap start-------------------------------*/
     if (_is_mmap_allocation(old_metadata))
     {
         if (size == old_metadata->size)
@@ -754,6 +755,7 @@ void *srealloc(void *oldp, size_t size)
         sfree(oldp);
         return smalloc(size);
     }
+    /*---------------------------------- case mmap done--------------------------------*/
     /*---------------------------------- case a start----------------------------------*/
 
     if (size <= old_metadata->size)
