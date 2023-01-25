@@ -764,7 +764,7 @@ void *srealloc(void *oldp, size_t size)
 
         next_to_cut = old_metadata->next;
         _cut_if_needed(old_metadata, size);
-        _coalesce_free_blocks(next_to_cut);
+        //_coalesce_free_blocks(next_to_cut);
 
         return oldp;
     }
@@ -792,7 +792,7 @@ void *srealloc(void *oldp, size_t size)
 
         _cut_if_needed(prev, size);
         prev->is_free = false;
-        _coalesce_free_blocks(prev->next);
+        //_coalesce_free_blocks(prev->next);
 //        _coalesce_free_blocks(old_metadata);
 
 
@@ -858,7 +858,7 @@ void *srealloc(void *oldp, size_t size)
 
         next_to_cut = old_metadata->next;
         _cut_if_needed(old_metadata, size);
-        _coalesce_free_blocks(next_to_cut);
+        //_coalesce_free_blocks(next_to_cut);
 
         return (void *) ((size_t) old_metadata + _size_meta_data());
     }
@@ -873,7 +873,7 @@ void *srealloc(void *oldp, size_t size)
 
         _cut_if_needed(prev, size);
         prev->is_free = false;
-        _coalesce_free_blocks(prev->next);
+        //_coalesce_free_blocks(prev->next);
 
         allocated_ptr =  (void *) ((size_t) prev + _size_meta_data());
         memmove(allocated_ptr, oldp, old_metadata->size);
@@ -926,7 +926,7 @@ void *srealloc(void *oldp, size_t size)
 
         next_to_cut = to_allocate->next;
         _cut_if_needed(to_allocate, size);
-        _coalesce_free_blocks(next_to_cut);
+        //_coalesce_free_blocks(next_to_cut);
 
         memmove(allocated_ptr, oldp, old_metadata->size);
         sfree(oldp);
