@@ -738,7 +738,7 @@ void *srealloc(void *oldp, size_t size)
 
     void *allocated_ptr;
     bool prev_state, next_state;
-    MallocMetadata next_to_cut;
+    //MallocMetadata next_to_cut;
     if (!oldp) // NULL received
     {
         return smalloc(size);
@@ -762,7 +762,7 @@ void *srealloc(void *oldp, size_t size)
     {
         old_metadata->is_free = false;
 
-        next_to_cut = old_metadata->next;
+        //next_to_cut = old_metadata->next;
         _cut_if_needed(old_metadata, size);
         //_coalesce_free_blocks(next_to_cut);
 
@@ -856,7 +856,7 @@ void *srealloc(void *oldp, size_t size)
             old_metadata->prev->is_free = prev_state;
         }
 
-        next_to_cut = old_metadata->next;
+        //next_to_cut = old_metadata->next;
         _cut_if_needed(old_metadata, size);
         //_coalesce_free_blocks(next_to_cut);
 
@@ -924,7 +924,7 @@ void *srealloc(void *oldp, size_t size)
         allocated_ptr =  (void *) ((size_t) to_allocate + _size_meta_data());
         _remove_from_free_list(to_allocate);
 
-        next_to_cut = to_allocate->next;
+        //next_to_cut = to_allocate->next;
         _cut_if_needed(to_allocate, size);
         //_coalesce_free_blocks(next_to_cut);
 
